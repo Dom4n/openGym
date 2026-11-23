@@ -421,3 +421,36 @@ describe('cardio (#942): minutes at a speed, as a cardio set finished on the pho
     expect(a).not.toBe(b)
   })
 })
+
+describe('supersets by label', () => {
+  const pair = (over = {}) => ({
+    date: TODAY,
+    exercises: [
+      { exercise: 'dumbbell curl', superset: 'A', sets: [{ reps: 12, weight: 12 }] },
+      { exercise: 'bench press', superset: 'A', sets: [{ reps: 8, weight: 60 }] },
+      { exercise: 'plank', sets: [{ seconds: 60 }] },
+    ],
+    ...over,
+  })
+  it('neighbours with one label are tagged as one superset, as a session in the app tags them', () => {
+    const r = build(profile(), pair())
+    expect(r.problems).toBeUndefined()
+    const [a, b, c] = r.workout.entries
+    expect(a.sg).toMatch(/^sg/)
+    expect(b.sg).toBe(a.sg)
+    expect(c.sg).toBeUndefined()
+  })
+  it('the same call names the same workout and the same tags; without labels the id is the one it always was', () => {
+    const one = build(profile(), pair()).workout, two = build(profile(), pair()).workout
+    expect(two.id).toBe(one.id)
+    expect(two.entries[0].sg).toBe(one.entries[0].sg)
+    const plain = curls()
+    expect(build(profile(), { ...plain, exercises: plain.exercises.map(e => ({ ...e, superset: undefined })) }).workout.id).toBe(build(profile(), plain).workout.id)
+    expect(build(profile(), pair()).workout.id).not.toBe(build(profile(), pair({ exercises: pair().exercises.map(({ superset, ...e }) => e) })).workout.id)
+  })
+  it('a label on one exercise is a problem, and nothing is built', () => {
+    const r = build(profile(), pair({ exercises: pair().exercises.map((e, i) => (i === 1 ? { ...e, superset: undefined } : e)) }))
+    expect(r.workout).toBeUndefined()
+    expect(r.problems[0]).toMatchObject({ field: 'exercises[0].superset' })
+  })
+})

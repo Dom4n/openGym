@@ -86,3 +86,53 @@ test('weekdaysOf', () => {
   expect(weekdaysOf([7]).problem).toBeTruthy()
   expect(weekdaysOf('monday').problem).toBeTruthy()
 })
+
+describe('supersets by label', () => {
+  test('create: neighbours with one label share a tag, the others have none', () => {
+    const S = base()
+    const r = createRoutine(S, { name: 'Upper', exercises: [
+      { exercise: 'bench press', superset: 'A' }, { exercise: 'cable seated row', superset: 'A' },
+      { exercise: 'dumbbell curl' },
+      { exercise: 'dumbbell curl', superset: 'B' }, { exercise: 'plank', superset: 'B' },
+    ] })
+    expect(r.problems).toBeUndefined()
+    const sg = r.routine.ex.map(e => e.sg)
+    expect(sg[0]).toMatch(/^sg/)
+    expect(sg[1]).toBe(sg[0])
+    expect(sg[2]).toBeUndefined()
+    expect(sg[3]).toMatch(/^sg/)
+    expect(sg[4]).toBe(sg[3])
+    expect(sg[3]).not.toBe(sg[0])
+  })
+  test('a split or lonely label is a problem, and nothing is saved', () => {
+    const S = base()
+    const before = JSON.stringify(S)
+    const r = createRoutine(S, { name: 'X', exercises: [{ exercise: 'squat', superset: 'A' }, { exercise: 'plank' }, { exercise: 'bench press', superset: 'A' }] })
+    expect(r.problems.map(p => p.field)).toEqual(['exercises[2].superset', 'exercises[0].superset'])
+    expect(JSON.stringify(S)).toBe(before)
+  })
+  test('edit: no label keeps the slot\'s superset, "" takes it out, a label makes a new one without the old name', () => {
+    const S = base()
+    S.routines[0].ex = [
+      { id: '0025', sets: 3, reps: 8, mode: 'reps', sg: 'old', sgName: 'Pair', sgRest: 90 },
+      { id: '0294', sets: 3, reps: 10, mode: 'reps', sg: 'old', sgName: 'Pair', sgRest: 90 },
+      { id: '0463', sets: 3, sec: 60, mode: 'time' },
+    ]
+    const kept = updateRoutine(structuredClone(S), 'r1', { exercises: [{ exercise: '0025', sets: 4 }, { exercise: '0294' }, { exercise: '0463' }] })
+    expect(kept.routine.ex.map(e => e.sg)).toEqual(['old', 'old', undefined])
+    expect(kept.routine.ex[0]).toMatchObject({ sgName: 'Pair', sgRest: 90 })
+
+    const out = updateRoutine(structuredClone(S), 'r1', { exercises: [{ exercise: '0025', superset: '' }, { exercise: '0294' }, { exercise: '0463' }] })
+    // The partner left alone in its group loses the tag too, as in the editor.
+    expect(out.routine.ex.map(e => e.sg)).toEqual([undefined, undefined, undefined])
+    expect(out.routine.ex[1].sgName).toBeUndefined()
+
+    const moved = updateRoutine(structuredClone(S), 'r1', { exercises: [{ exercise: '0025' }, { exercise: '0294', superset: 'B' }, { exercise: '0463', superset: 'B' }] })
+    const [a, b, c] = moved.routine.ex
+    expect(a.sg).toBeUndefined()
+    expect(b.sg).toMatch(/^sg/)
+    expect(c.sg).toBe(b.sg)
+    expect(b.sgName).toBeUndefined()
+    expect(c.sgRest).toBeUndefined()
+  })
+})

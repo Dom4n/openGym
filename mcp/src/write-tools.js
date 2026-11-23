@@ -56,6 +56,7 @@ const inputOf = p => ({
     createCustom: ex.create_custom,
     bodyPart: ex.body_part,
     note: ex.note,
+    superset: ex.superset,
     sets: (ex.sets || []).map(s => ({ reps: s.reps, seconds: s.seconds, weight: s.weight, warmup: s.warmup, failure: s.failure, rir: s.rir, rpe: s.rpe, minutes: s.minutes, speed: s.speed, distance: s.distance, incline: s.incline })),
   })),
 })
@@ -104,6 +105,7 @@ function viewOf(w, S, resolved, speedUnit = speedUnitOf(S)) {
           ...(row.rpe != null ? { rpe: row.rpe } : {}),
         })),
         ...(e.note ? { note: e.note } : {}),
+        ...(e.sg ? { superset_group: e.sg } : {}),
       }
     }),
   }
@@ -133,7 +135,8 @@ export const logWorkout = {
     'Only set create_custom for an exercise the user confirms is not in the library.',
     'Call with dry_run: true first when you had to interpret anything, show the user the preview, and log it once they agree.',
     'Cardio is minutes per set plus speed or distance and an optional incline: "20 min treadmill walk at 3.5 mph, incline 7" is {exercise: "treadmill", sets: [{minutes: 20, speed: 3.5, incline: 7}]} with speed_unit "mph".',
-    'Calling again with the same description does not log it twice. Supersets are not supported here.',
+    'Calling again with the same description does not log it twice.',
+    'Supersets: give the exercises done back to back the same `superset` label ("A", "B"...); they must be next to each other in the list.',
   ].join(' '),
   schema: {
     date: isoDate().optional().describe('YYYY-MM-DD the session was done; defaults to today. Not in the future.'),
@@ -148,6 +151,7 @@ export const logWorkout = {
       create_custom: z.boolean().optional().describe('Create this as the user\'s own exercise when the library has nothing matching. Only after the user confirms.'),
       body_part: z.enum(BODY_PARTS).optional().describe('Body part of a new custom exercise, when its name does not say.'),
       note: z.string().max(280).optional().describe('A note on this exercise today.'),
+      superset: z.string().max(40).optional().describe('A superset label: neighbouring exercises with the same label were done as one superset.'),
       sets: z.array(setSchema).min(1).max(LOG_LIMITS.maxSets),
     })).min(1).max(LOG_LIMITS.maxExercises),
     dry_run: z.boolean().optional().describe('Build and return the preview without saving anything.'),

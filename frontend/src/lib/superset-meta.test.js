@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { supersetMeta, setSupersetMeta, syncSupersetMeta } from './superset-meta.js'
+import { supersetMeta, setSupersetMeta, syncSupersetMeta, supersetGroups } from './superset-meta.js'
 import { restSecFor } from './supersetFlow.js'
 
 describe('a superset\'s name and rest between rounds (#292)', () => {
@@ -26,5 +26,22 @@ describe('a superset\'s name and rest between rounds (#292)', () => {
     // On a single exercise a leftover value means nothing.
     expect(restSecFor(entries, [0], 90)).toBe(120)
     expect(restSecFor([{ target: { restSec: 120 } }, { target: {} }], [0, 1], 90)).toBe(120)
+  })
+})
+
+describe('supersetGroups (the MCP tools\' superset labels)', () => {
+  it('neighbours with one label are one group, counted in order; no label is none, undefined is not said', () => {
+    const r = supersetGroups(['A', ' A ', '', 'B', 'B', 'B', undefined, null])
+    expect(r.problems).toEqual([])
+    expect(r.groups).toEqual([0, 0, null, 1, 1, 1, undefined, null])
+  })
+  it('a label split by another exercise, or on one exercise alone, is a problem', () => {
+    const split = supersetGroups(['A', 'B', 'B', 'A'])
+    expect(split.problems.map(p => p.field)).toEqual(['exercises[3].superset', 'exercises[0].superset'])
+    expect(split.problems[0].problem).toMatch(/next to each other/)
+    const alone = supersetGroups(['A', null, 'C', 'C'], 'add_exercises')
+    expect(alone.problems).toHaveLength(1)
+    expect(alone.problems[0]).toMatchObject({ field: 'add_exercises[0].superset' })
+    expect(alone.problems[0].problem).toMatch(/one exercise/)
   })
 })

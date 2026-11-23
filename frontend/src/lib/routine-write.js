@@ -13,6 +13,7 @@ import { resolveExercise } from './log-workout.js'
 import { pickedExerciseConfig, cleanupSg } from './history.js'
 import { deleteRoutine } from './routines.js'
 import { isCardio } from './exercises.js'
+import { supersetGroups } from './superset-meta.js'
 
 const LB_TO_KG = 0.45359237
 export const ROUTINE_LIMITS = { maxExercises: 40, maxSets: 20, maxReps: 100, maxSec: 3600, maxRestSec: 900, maxKg: 2000, maxName: 80, maxNote: 280 }
@@ -83,7 +84,9 @@ function slotsOf(S, list, old, unit, field, problems) {
   if (!Array.isArray(list) || !list.length) { problems.push({ field, problem: 'at least one exercise' }); return [] }
   if (list.length > ROUTINE_LIMITS.maxExercises) { problems.push({ field, problem: `at most ${ROUTINE_LIMITS.maxExercises}` }); return [] }
   const used = new Set()
-  return list.map((ex, i) => {
+  const { groups, problems: grouping } = supersetGroups(list.map(ex => ex?.superset), field)
+  problems.push(...grouping)
+  const slots = list.map((ex, i) => {
     let base = null
     if (old) {
       const ref = ex?.exercise
@@ -92,7 +95,20 @@ function slotsOf(S, list, old, unit, field, problems) {
       if (j >= 0) { used.add(j); base = old[j] }
     }
     return slotOf(S, ex, base, unit, `${field}[${i}]`, problems)
-  }).filter(Boolean)
+  })
+  // A label puts the slot in that superset, '' takes it out, no label leaves it where it was.
+  // Each label is a new group of this list: a slot joining one leaves its old group's name, rest
+  // and circuit behind (cleanupSg then drops the tag of a group left with one member).
+  const ids = new Map()
+  slots.forEach((slot, i) => {
+    const k = groups[i]
+    if (!slot || k === undefined) return
+    delete slot.sgName; delete slot.sgRest; delete slot.sgCircuit
+    if (k === null) { delete slot.sg; return }
+    if (!ids.has(k)) ids.set(k, 'sg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + k)
+    slot.sg = ids.get(k)
+  })
+  return slots.filter(Boolean)
 }
 
 function placeOnWeekdays(S, id, days) {
@@ -109,7 +125,8 @@ function placeOnWeekdays(S, id, days) {
 
 /**
  * A new routine into `S` (mutated). `input`: { name, exercises: [{ exercise, sets?, reps? | seconds?,
- * weight?, rest_sec?, note? }], weekdays?, unit? }. → { routine } or { problems } (S untouched).
+ * weight?, rest_sec?, note?, superset? }], weekdays?, unit? }. Neighbours with the same `superset`
+ * label are one superset. → { routine } or { problems } (S untouched).
  */
 export function createRoutine(S, input, { id } = {}) {
   const problems = []

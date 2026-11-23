@@ -23,6 +23,7 @@ import { stampWorkout } from './sync-merge.js'
 import { exerciseMuscleSnapshot } from './muscles.js'
 import { fromSpeed, speedUnitOf, KMH_PER_MPH } from './speed.js'
 import { clampIncline, inclineFits } from './incline.js'
+import { supersetGroups } from './superset-meta.js'
 
 const LB_TO_KG = 0.45359237
 // The importer's bounds (import-csv.js MAX_KG / MAX_REPS): nobody lifts 2 t or does 1,000 reps.
@@ -144,7 +145,8 @@ function cardioRows(sets, at, ex, speedUnit, problems) {
  * Build the workout a description stands for, against profile `S`, without touching it.
  *
  * `input`: { date: 'YYYY-MM-DD', start?: 'HH:MM', durationMin?, name?, note?, unit?: 'kg'|'lb',
- *   exercises: [{ exercise, createCustom?, bodyPart?, note?,
+ *   exercises: [{ exercise, createCustom?, bodyPart?, note?, superset? (neighbours with one label
+ *     were done as a superset),
  *     sets: [{ reps? | seconds?, weight?, warmup?, failure?, rir? | rpe? }] }] }
  *
  * Returns { workout, past, customEx, resolved } or { problems }: every problem in the whole
@@ -179,6 +181,9 @@ export function buildLoggedWorkout(S, input, { now = Date.now(), unit: fallbackU
   const exercises = Array.isArray(input?.exercises) ? input.exercises : []
   if (!exercises.length) problems.push({ field: 'exercises', problem: 'at least one exercise' })
   if (exercises.length > LOG_LIMITS.maxExercises) problems.push({ field: 'exercises', problem: `at most ${LOG_LIMITS.maxExercises}` })
+
+  const grouping = supersetGroups(exercises.map(ex => ex?.superset ?? null), 'exercises')
+  problems.push(...grouping.problems)
 
   const customEx = []
   const resolved = []
@@ -301,6 +306,7 @@ export function buildLoggedWorkout(S, input, { now = Date.now(), unit: fallbackU
   const id = importId('mw', JSON.stringify([
     date, input.start ?? null, dur ?? null, input.name ?? null, input.note ?? null, input.unit ?? null,
     exercises.map(ex => [ex.exercise, ex.createCustom === true, ex.note ?? null,
+      ...(ex.superset ? [String(ex.superset).trim()] : []),
       ex.sets.map(s => {
         const row = [s.reps ?? null, s.seconds ?? null, s.weight ?? null, s.warmup === true, s.failure === true, s.rir ?? null, s.rpe ?? null]
         // Cardio's fields join only when there are any: every lifting description keeps the id it
@@ -309,6 +315,9 @@ export function buildLoggedWorkout(S, input, { now = Date.now(), unit: fallbackU
         return cardio.some(v => v != null) ? [...row, ...cardio.map(v => v ?? null), input.speedUnit ?? null] : row
       })]),
   ]))
+  // The supersets, tagged the way a session in the app tags them (entry.sg), from the workout's
+  // own id so a retry tags them the same. Without problems, entries[i] is exercises[i].
+  entries.forEach((e, i) => { const k = grouping.groups[i]; if (k != null) e.sg = `sg${id.slice(2)}-${k}` })
   // A custom exercise's muscles go with the entry, as Finish writes them: a device that deletes
   // the exercise without ever having seen this workout would otherwise leave its sets crediting
   // no muscle at all.

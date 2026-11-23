@@ -97,6 +97,18 @@ describe('log_workout writes through the server', () => {
     expect(api.puts).toHaveLength(0)
   })
 
+  test('a superset label reaches the workout and the answer says the group', async () => {
+    const r = await call({ exercises: [
+      { exercise: 'dumbbell curl', superset: 'A', sets: [{ reps: 12, weight: 12 }] },
+      { exercise: 'bench press', superset: 'A', sets: [{ reps: 8, weight: 60 }] },
+    ] })
+    expect(r.logged).toBe(true)
+    const [a, b] = api.puts[0].state.workouts.at(-1).entries
+    expect(a.sg).toMatch(/^sg/)
+    expect(b.sg).toBe(a.sg)
+    expect(r.exercises.map(e => e.superset_group)).toEqual([a.sg, a.sg])
+  })
+
   test('a name with several matches comes back as problems with candidates, and nothing is written', async () => {
     const r = await call({ exercises: [{ exercise: 'lever chest press', sets: [{ reps: 10, weight: 40 }] }] })
     expect(r.logged).toBe(false)

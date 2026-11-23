@@ -1469,6 +1469,35 @@ describe('get_workout set notes', () => {
   })
 })
 
+describe('get_workout session and exercise notes, supersets', () => {
+  test('the session\'s note and an exercise\'s note that day come back, and the superset it was done in', () => {
+    const w0 = S.workouts.find(w => (w.entries || []).length > 2)
+    const saved = structuredClone(w0)
+    w0.note = ' elbow ok, other cable station '
+    w0.entries[0].note = 'pain 2/10'
+    w0.entries[0].sg = 'sgX'
+    w0.entries[1].sg = 'sgX'
+    _seedStateForTests(S)
+    try {
+      const w = call('get_workout', { workout_id: w0.id })
+      expect(w.note).toBe('elbow ok, other cable station')
+      expect(w.entries[0].note).toBe('pain 2/10')
+      expect(w.entries[0].superset_group).toBe('sgX')
+      expect(w.entries[1].superset_group).toBe('sgX')
+      expect('note' in w.entries[1]).toBe(false)
+      expect('superset_group' in w.entries[2]).toBe(false)
+    } finally {
+      Object.keys(w0).forEach(k => delete w0[k])
+      Object.assign(w0, saved)
+      _seedStateForTests(S)
+    }
+  })
+  test('a session without a note has no note field', () => {
+    const w = call('get_workout', { workout_id: S.workouts.find(x => !x.note).id })
+    expect('note' in w).toBe(false)
+  })
+})
+
 describe('search_exercises (sub-connect-146)', () => {
   test('finds catalogue exercises with ids, filters by body part and equipment, and is allowed to any reading token', async () => {
     const { searchExercises } = await import('../src/tools.js')

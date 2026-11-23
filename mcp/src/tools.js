@@ -86,6 +86,10 @@ export function entryView(e, S, speedUnit = speedUnitOf(S)) {
       // The set's colour tag (set menu → Colour tag), the lifter's own code: "red", "blue", …
       ...(setTagCell(s) ? { color_tag: setTagCell(s) } : {})
     })),
+    // What was typed about this exercise that day (the exercise's note in the session), and the
+    // superset it was done in: entries next to each other with one superset_group were a superset.
+    ...(typeof e.note === 'string' && e.note.trim() ? { note: e.note.trim() } : {}),
+    ...(e.sg ? { superset_group: e.sg } : {}),
     // How many of its sets have a form video (frontend lib/set-videos.js) — the count only. The
     // videos themselves, their files and their refs never reach a client of this server.
     ...(formVideos(e) ? { form_videos: formVideos(e) } : {})
@@ -336,7 +340,7 @@ const gymOf = w => (w && w.gym && typeof w.gym === 'object' && String(w.gym.name
 /** get_workout — full entry/set breakdown for one date. */
 export const getWorkout = {
   name: 'get_workout',
-  description: 'Get the full breakdown of one workout: every exercise, its mode (reps/time/cardio), the target, and per-set labels (e.g. "5 @ 60 kg", "1:30 · 20 kg"), and form_videos: how many sets the user filmed (a count only; the videos are never shared). Identify it by workout_id (from list_workouts) or by date. Use list_workouts first if you don\'t know either.',
+  description: 'Get the full breakdown of one workout: every exercise, its mode (reps/time/cardio), the target, and per-set labels (e.g. "5 @ 60 kg", "1:30 · 20 kg"), the notes the user typed (`note` on the session, on an exercise that day, on a set), superset_group (neighbouring exercises with the same value were done as a superset), and form_videos: how many sets the user filmed (a count only; the videos are never shared). Identify it by workout_id (from list_workouts) or by date. Use list_workouts first if you don\'t know either.',
   schema: {
     date: isoDate().optional().describe('The workout date as YYYY-MM-DD. If two sessions share that date, the answer lists them instead and asks for a workout_id.'),
     workout_id: z.string().min(1).optional().describe('The id from list_workouts. Preferred: it names one session even on a day with two.')
@@ -384,6 +388,8 @@ export const getWorkout = {
       sets_done: setsDone(w),
       sets_planned: setUnitsTotal(w.entries),
       duration: w.end && w.start ? friendlyDuration(w.end - w.start) : null,
+      // The note on the whole session (typed at Finish or in the workout detail).
+      ...(typeof w.note === 'string' && w.note.trim() ? { note: w.note.trim() } : {}),
       prs: (w.prs || []).map(id => {
         const ex = exerciseOf(id, S)
         return ex.missing ? id : ex.n

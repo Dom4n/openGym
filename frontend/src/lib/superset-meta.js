@@ -47,3 +47,39 @@ export function syncSupersetMeta(ex) {
   }
   return ex
 }
+
+/**
+ * Superset labels a description gives, one per exercise ("A" on a bench press and a row), as
+ * groups: exercises next to each other with the same label are one superset. For the MCP write
+ * tools (routine-write.js, log-workout.js), where the model names groups instead of linking slots.
+ * A label is a string (trimmed); '' or null means not in a superset; undefined means not said (an
+ * edit keeps the slot's own). → { groups: [k | null | undefined per exercise], problems }, k
+ * counting the supersets from 0 in order. A label split by another exercise, or worn by one
+ * exercise alone, is a problem: the app's superset is a run of two or more neighbours.
+ */
+export function supersetGroups(labels, field = 'exercises') {
+  const problems = []
+  const groups = []
+  const seen = new Map() // label → { k, last index, count }
+  let prev = null
+  ;(labels || []).forEach((raw, i) => {
+    if (raw === undefined) { groups.push(undefined); prev = null; return }
+    const label = typeof raw === 'string' ? raw.trim().slice(0, SG_NAME_MAX) : raw == null ? '' : String(raw).trim().slice(0, SG_NAME_MAX)
+    if (!label) { groups.push(null); prev = null; return }
+    const g = seen.get(label)
+    if (g && prev !== label) {
+      problems.push({ field: `${field}[${i}].superset`, problem: `the exercises of superset "${label}" must be next to each other` })
+      groups.push(null)
+      prev = null
+      return
+    }
+    if (!g) seen.set(label, { k: seen.size, first: i, count: 1 })
+    else g.count++
+    groups.push(seen.get(label).k)
+    prev = label
+  })
+  for (const [label, g] of seen) {
+    if (g.count < 2) problems.push({ field: `${field}[${g.first}].superset`, problem: `superset "${label}" has one exercise; give the same label to the exercise next to it, or leave the label out` })
+  }
+  return { groups, problems }
+}

@@ -83,6 +83,7 @@ const exerciseSchema = z.object({
   weight: z.number().min(0).optional().describe('Planned load in `unit`; omit or 0 to start from what the user lifted last time.'),
   rest_sec: z.number().int().min(0).max(ROUTINE_LIMITS.maxRestSec).optional().describe('Rest after each set, seconds. 0 or omitted: the global rest timer.'),
   note: z.string().max(ROUTINE_LIMITS.maxNote).optional().describe('A note shown with this exercise in the workout.'),
+  superset: z.string().max(40).optional().describe('A superset label, e.g. "A": exercises next to each other with the same label are done as one superset (two or more). "" takes the exercise out of its superset; omitting it leaves the slot as it was.'),
 })
 const weekdaysSchema = z.array(z.enum(WEEKDAYS)).max(7)
 
@@ -92,6 +93,7 @@ export const createRoutineTool = {
     'Create a routine in the user\'s openGym plan (it syncs to all their devices), e.g. "squat 5 × 5 at 100 kg, plank 3 × 60 s, Tuesdays and Fridays".',
     'Exercises are matched against the library like log_workout: when a name matches several or none, nothing is saved and `problems` lists candidates to put to the user.',
     'Each exercise starts the way picking it in the app starts it; only what you pass is set on top. `weekdays` puts it on those days of the weekly plan, next to whatever is planned there already.',
+    'Supersets: give neighbouring exercises the same `superset` label ("A", "B"...); a superset rests once per round, as long as the longest rest_sec of its exercises.',
     'Call with dry_run: true first when you interpreted anything, show the preview, and save once the user agrees.',
   ].join(' '),
   schema: {
@@ -112,7 +114,7 @@ export const updateRoutineTool = {
   name: 'update_routine',
   description: [
     'Change a routine: rename it, replace its exercise list, append exercises, or move it to other weekdays. Use routine_id from list_routines.',
-    '`exercises` is the whole new list in order; an exercise named again keeps everything its slot had (rest, warm-ups, progression, notes) except what you pass. `add_exercises` appends. `weekdays` is every day it should be on (it leaves the others); omit it to leave the schedule alone.',
+    '`exercises` is the whole new list in order; an exercise named again keeps everything its slot had (rest, warm-ups, progression, notes, its superset) except what you pass. `add_exercises` appends. A `superset` label groups neighbours of the same list into a new superset, "" takes one out of its superset. `weekdays` is every day it should be on (it leaves the others); omit it to leave the schedule alone.',
     'Pass expected_revision (from get_routine) when the user confirmed a change against what they saw: if the profile moved since, nothing is saved and you get a conflict to read again.',
   ].join(' '),
   schema: {
